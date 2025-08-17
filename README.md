@@ -2,7 +2,6 @@
 2025年
 
 仿terrian自带刷草工具的Mesh刷草工具 ： 支持Gpu instancing + 顶点着色器风场 + 一键烘培
-![Result](./image/LastResult.gif)
 
 挂载脚本GrassPainV4，设置相关参数点击paingrass即可在编辑模式进行绘制。
 ![GrassTool](./image/GrassTool.gif)
@@ -14,7 +13,7 @@
 ![Interaction](./image/Interaction.gif)
 
 运行结果：
-![01 image](./image/01.png)
+![Result](./image/LastResult.gif)
 
 性能测试：
 
