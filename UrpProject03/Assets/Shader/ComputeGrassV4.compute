@@ -1,0 +1,35 @@
+#pragma kernel ComputeGrassV4
+
+struct GrassData
+{
+    float3 pos;
+    float  scale;
+    float3 rot;
+    uint   data;
+};
+
+StructuredBuffer<GrassData> _AllGrass;
+AppendStructuredBuffer<uint> _VisibleIndices;
+float4 _Planes[6];
+float3 _CamPos;
+float  _MaxDistSq;
+uint   _TotalCount;
+float4x4 _ObjectToWorld;
+
+[numthreads(64,1,1)]
+void ComputeGrassV4(uint3 id : SV_DispatchThreadID)
+{
+    uint i = id.x;
+    
+    if (i >= _TotalCount) return;
+
+    float4 w = mul(_ObjectToWorld, float4(_AllGrass[i].pos, 1.0)); ;
+    //if (dot(w - _CamPos, w - _CamPos) > _MaxDistSq) return;
+
+    float radius = _AllGrass[i].scale * 0.5f;
+    for (int k = 0; k < 6; ++k) {
+        if (dot(_Planes[k], float4(w)) < -radius) 
+            return;
+    }
+    _VisibleIndices.Append(i);
+}
