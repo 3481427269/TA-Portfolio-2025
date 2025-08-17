@@ -30,7 +30,7 @@ public class GrassPainV4 : MonoBehaviour
     public float scale;
     private float Height = 1.0f;
     public float MinHeight = 1.0f;
-    private float MaxHeight = 2.0f;
+    public float MaxHeight = 2.0f;
     [SerializeField] private int selectedMeshId = 0;
     [SerializeField] private int selectedMaterialId = 0;
     public int maxGrassCount = 1 << 20;

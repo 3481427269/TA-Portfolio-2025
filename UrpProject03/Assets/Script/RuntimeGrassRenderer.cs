@@ -5,7 +5,7 @@ using Unity.Jobs;
 using Unity.Burst;
 using Unity.Collections;
 using Unity.Mathematics;
-using UnityEngine.Rendering; // 添加此命名空间
+using UnityEngine.Rendering; 
 
 public class RuntimeGrassRenderer : MonoBehaviour
 {
@@ -27,6 +27,7 @@ public class RuntimeGrassRenderer : MonoBehaviour
 
     public float MinHeight = 1.0f;
     public float MaxHeight = 1.0f;
+    public float MaxDistSq = 1000;
 
     void Start()
     {
@@ -136,9 +137,10 @@ public class RuntimeGrassRenderer : MonoBehaviour
         cullCompute.SetBuffer(kernel, "_Args", argsBuffer);  // 用于 CopyCount
         cullCompute.SetVectorArray("_Planes", GetFrustumPlanes(cam));
         cullCompute.SetVector("_CamPos", cam.transform.position);
-        cullCompute.SetFloat("_MaxDistSq", 100f * 100f);
+        cullCompute.SetFloat("_MaxDistSq", MaxDistSq * MaxDistSq);
         cullCompute.SetInt("_TotalCount", grassData.grassInstances.Length);
         cullCompute.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
+        //cullCompute.SetInt("_VisibleCount", visibleGrassCount);
 
         visibleIndexBuffer.SetCounterValue(0);                         // 重置 Append
         int groups = Mathf.CeilToInt(grassData.grassInstances.Length / 64f);
@@ -146,7 +148,6 @@ public class RuntimeGrassRenderer : MonoBehaviour
 
         // 把可见数量写进 argsBuffer
         ComputeBuffer.CopyCount(visibleIndexBuffer, argsBuffer, 4);
-       
     }
 
     NativeList<int> visibleNative;

@@ -24,7 +24,7 @@ void ComputeGrassV4(uint3 id : SV_DispatchThreadID)
     if (i >= _TotalCount) return;
 
     float4 w = mul(_ObjectToWorld, float4(_AllGrass[i].pos, 1.0)); ;
-    //if (dot(w - _CamPos, w - _CamPos) > _MaxDistSq) return;
+    if (dot(w - _CamPos, w - _CamPos) > _MaxDistSq) return;
 
     float radius = _AllGrass[i].scale * 0.5f;
     for (int k = 0; k < 6; ++k) {
