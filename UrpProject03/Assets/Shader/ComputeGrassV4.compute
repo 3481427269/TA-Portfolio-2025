@@ -16,11 +16,130 @@ float  _MaxDistSq;
 uint   _TotalCount;
 float4x4 _ObjectToWorld;
 
+StructuredBuffer<float3> _PlayerPosBuf;
+int _PlayerCount;
+float _PushRadius;
+RWStructuredBuffer<float4x4> _MatsOut;
+float _Time;
+float _MinHeight;
+float _MaxHeight;
+uint _Counts;
+#define PI 3.14159265358979323846
+
+
+float4x4 CreateModelMatrix(float3 pos, float3 rot, float scl, float h)
+        {
+            // 转换为弧度
+            float3 rad = radians(rot);
+            
+            // 提取旋转分量
+            float cx = cos(rad.x), sx = sin(rad.x);
+            float cy = cos(rad.y), sy = sin(rad.y);
+            float cz = cos(rad.z), sz = sin(rad.z);
+            
+            // 构建旋转矩阵 - 优化顺序为ZXY
+            float4x4 rotMatrix = float4x4(
+                cy*cz - sx*sy*sz, -cx*sz, sy*cz + sx*cy*sz, 0,
+                cy*sz + sx*sy*cz, cx*cz, sy*sz - sx*cy*cz, 0,
+                -cx*sy,          sx,     cx*cy,            0,
+                0, 0, 0, 1
+            );
+            
+            // 缩放矩阵
+            float4x4 scaleMatrix = float4x4(
+                scl, 0, 0, 0,
+                0, h, 0, 0,
+                0, 0, scl, 0,
+                0, 0, 0, 1
+            );
+            
+            // 平移矩阵
+            float4x4 transMatrix = float4x4(
+                1, 0, 0, pos.x,
+                0, 1, 0, pos.y,
+                0, 0, 1, pos.z,
+                0, 0, 0, 1
+            );
+            
+            // 组合变换: T * R * S
+            return mul(transMatrix, mul(rotMatrix, scaleMatrix));
+        }
+
+
+float3x3 AngleAxis3x3(float angle, float3 axis)
+        {
+            float c = cos(angle), s = sin(angle), omc = 1 - c;
+            float x = axis.x, y = axis.y, z = axis.z;
+            return float3x3(
+                c + x*x*omc,     x*y*omc - z*s,   x*z*omc + y*s,
+                y*x*omc + z*s,   c + y*y*omc,     y*z*omc - x*s,
+                z*x*omc - y*s,   z*y*omc + x*s,   c + z*z*omc
+            );
+        }
+
+void ApplyPlayerInteraction(inout float3 worldPos, float3 playerPos)
+    {
+        float3 toPlayer = playerPos.xyz - worldPos;
+        toPlayer.y = 0;                       // 只在 XZ 平面计算
+        float dist = length(toPlayer);
+
+        float r = _PushRadius;       
+        if(r==0)return;             // 交互半径，脚本设置
+        if (dist < r)
+        {
+            // 1. 衰减系数：二次曲线
+            float falloff = 1.0 - saturate(dist / r);
+            falloff *= falloff;
+
+            // 2. 弯曲轴与角度
+            float3 bendAxis = normalize(float3(-toPlayer.z, 0, toPlayer.x)); // 垂直于 toPlayer
+            float  bendAngle = 55.0 * 0.0174533 * falloff;                 // 55° -> 弧度
+
+            // 3. 旋转顶点 & 法线
+            float3x3 rotMat = AngleAxis3x3(bendAngle, bendAxis);
+            worldPos = mul(rotMat, worldPos - playerPos.xyz) + playerPos.xyz;
+
+            // 4. 轻微压缩（高度方向）
+            worldPos.y *= lerp(1.0, 0.7, falloff);
+        }
+    }
+
+    float rand(float2 seed) 
+        {
+        return frac(sin(dot(seed.xy, float2(12.9898, 78.233))) * 43758.5453);
+        }
+
+    float3 CalculateWindEffect(uint grassID)
+    {
+        // 确保风向向量是单位向量
+        float3 windDir = normalize(float3(1, 0, 1));
+        
+        // 使用草的ID作为随机种子
+        float phaseOffset = rand(float2(grassID, 0)) * 2 * PI;
+        
+        float timeFactor = _Time.x * 5; // 控制速度
+        float frequency = lerp(0.8, 1.5, rand(float2(grassID, 1)));
+        float amplitude = 0.02; // 增加振幅值
+        
+        // 主摆动
+        float mainSwing = sin(timeFactor * frequency + phaseOffset) * amplitude;
+        
+        // 次级摆动（制造更自然效果）
+        float secondarySwing = cos(timeFactor * frequency * 1.7 + phaseOffset) * amplitude * 0.3;
+        
+        // 组合风场效果 - 增强Y轴效果
+        float3 windEffect = windDir * mainSwing;
+        windEffect += float3(windDir.z, 0, -windDir.x) * secondarySwing;
+        windEffect.y = (abs(windEffect.x) + abs(windEffect.z)) * 0.5; // 增强垂直方向效果
+        
+        return windEffect;
+    }
+
 [numthreads(64,1,1)]
 void ComputeGrassV4(uint3 id : SV_DispatchThreadID)
 {
     uint i = id.x;
-    
+    _Counts = 0;
     if (i >= _TotalCount) return;
 
     float4 w = mul(_ObjectToWorld, float4(_AllGrass[i].pos, 1.0)); ;
@@ -31,5 +150,59 @@ void ComputeGrassV4(uint3 id : SV_DispatchThreadID)
         if (dot(_Planes[k], float4(w)) < -radius) 
             return;
     }
+
+   GrassData g = _AllGrass[i];
+   bool touched = false;
+
+    for(int ii = 0; ii < min(_PlayerCount, 4); ii++) // 限制最多4个玩家
+    {
+        float3 playerPos = _PlayerPosBuf[ii];
+        float3 toPlayer = playerPos - w.xyz;
+        toPlayer.y = 0; // 忽略Y轴
+        float dist = dot(toPlayer, toPlayer);
+        
+        float influenceRadius = _PushRadius * g.scale;
+        if (dist > influenceRadius * 1.21 ) { continue; }
+        if (dist < influenceRadius) 
+        {
+            dist = sqrt(dist);
+            float3 bendDir = -normalize(toPlayer);
+            float falloff = pow(1.0 - saturate(dist / influenceRadius), 2);
+            float intensity = 55.0 * falloff * saturate(1.0 / g.scale);
+            
+            // 应用玩家弯曲 - 与风场效果叠加
+            g.rot.x += bendDir.x * intensity;
+            g.rot.z += bendDir.z * intensity;
+            
+            // 轻微压缩效果
+            g.scale *= 1.0 - 0.3 * falloff;
+            touched = true;
+            break;
+        }
+    }
+
+    if(touched)return;
+
+    uint seed =  g.data  & 0xFFFFu;
+
+    float3 windEffect = CalculateWindEffect(i);
+    
+    // 将风场转换为旋转角度（弧度）
+    float windRotX = windEffect.z * 0.5; // 调整旋转强度
+    float windRotZ = -windEffect.x * 0.5;
+    
+    // 叠加到草的旋转参数上（注意单位转换）
+    g.rot.x += degrees(windRotX);
+    g.rot.z += degrees(windRotZ);
+    
+    // 轻微降低被风吹弯的草的高度
+    float windScaleFactor = 1.0 - length(windEffect) * 0.3;
+    //g.scale *= saturate(windScaleFactor);    
+    
+    float h = lerp(_MinHeight, _MaxHeight, rand(float2(i, 0)));
+
+    _MatsOut[i] = CreateModelMatrix(g.pos, g.rot, g.scale, h);
+    
     _VisibleIndices.Append(i);
+
 }

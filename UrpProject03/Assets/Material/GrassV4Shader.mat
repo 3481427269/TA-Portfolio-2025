@@ -26,7 +26,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _Strength: 1
+    - _MeshScale: 4.87
+    - _Strength: 0.88
+    - _WindSpeed: 9.7
     m_Colors:
     - _ButtomCol: {r: 0.5764706, g: 0.5764706, b: 0.5764706, a: 0}
     - _DownCol: {r: 0.25490198, g: 0.30588236, b: 0.4392157, a: 0}

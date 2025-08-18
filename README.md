@@ -9,8 +9,11 @@
 点击烘焙可以将数据烘培到指定asset中。
 ![Bake](./image/Bake.gif)
 
-在挂载了RuntimeGrassRenderer脚本的mesh上，指定GrassDataAsset，调节Height，可以在运行模式下看到asset中的草 + 视锥剔除 + 距离移除 + 顶点着色器单人交互。
-![Interaction](./image/Interaction.gif)
+在挂载了RuntimeGrassRenderer脚本的mesh上，指定GrassDataAsset，调节Height，可以在运行模式下看到asset中的草 + computeshader视锥剔除 + 距离移除 + 多人交互。
+![Interaction](./image/MorePeople.gif)
+
+着色器控制整体风场效果+computeshader控制单株草摆动
+![Wind](./image/WindShader.gif)
 
 运行结果：
 ![Result](./image/LastResult.gif)
@@ -21,13 +24,12 @@
 机带RAM：16.0 GB；
 集成显卡：128MB；
 
-5w规模简单模型草（单株顶点数13）帧频稳定在170左右。
-20w草帧频在48帧左右。
+5w规模简单模型草（单株顶点数13）
+相机距离80m帧频稳定在170左右
+相机距离30m帧频稳定在95左右
 
 一些注意事项：
-由于风场效果是在特定shader中,基于实例plane大小的世界坐标实现，所以如果场景中看不到实例的风场效果多半是因为Mesh的size太大。（后续考虑将风场效果迁移到computeshader）。
 另外不同草地需要使用不同的材质，否则后用草地更改的材质数据会覆盖前者。
-交互如果不明显，可以调节RuntimeGrassRenderer中的push radius。
 旧工程残留 JobSystem 剔除逻辑，所以需配置相关包才能正常运行，或者可以自行删除RuntimeGrassRenderer脚本中的Job system相关内容。
-目前工具一次仅支持使用一种mesh + material进行刷草操作（会改进）。
+目前工具一次仅支持使用一种mesh + material进行刷草操作（待改进）。
 视锥剔除和交互效果仅仅在RuntimeGrassRenderer脚本中实现。

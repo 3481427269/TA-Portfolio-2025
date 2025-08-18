@@ -7,61 +7,54 @@ Shader "Unlit/GrassV4"
         _ButtomCol("_ButtomCol", Color) = (0,0,0,0)
         _UpCol("_UpCol", Color) = (1,1,1,1)
         _Strength("Strength", float) = 1
-        //草地弯曲的强度
-        //_PushRadius("PushRadius", float) = 1
-        //交互的范围
+        _WindSpeed("_WindSpeed", float) = 1.0
+        _MeshScale("_Scale", float) = 5
+        
     }
     SubShader
     {
+         Tags 
+            { 
+                "RenderPipeline"="UniversalPipeline"
+                "LightMode"="ForwardOnly"
+            }
         
         Pass
         {
-            //ZWrite Off
+            Name "Unlit"
+            Tags { "LightMode"="SRPDefaultUnlit" }
+           
             Cull Off
-            //Blend SrcAlpha OneMinusSrcAlpha
-            //Blend One One
-            /*Tags 
-            { 
-                "RenderPipeline"="UniversalPipeline"
-                "LightMode"="UniversalForward"
-                "RenderType"="Transparent"
-            }*/
 
             HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #pragma multi_compile_instancing
-            #pragma multi_compile _ USE_CULLING 
+            //#pragma multi_compile_instancing
             
-            /*#pragma multi_compile _ _MAIN_LIGHT_SHADOWS
-            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS_CASCADE
-            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
-            #pragma multi_compile _ _ADDITIONAL_LIGHT_SHADOWS
-            #pragma multi_compile _ _SHADOWS_SOFT
-            #pragma multi_compile_fog*/
+            #pragma multi_compile _ USE_CULLING 
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
-
+           
             struct appdata
             {
                 float4 vertex : POSITION;
                 float3 normal : NORMAL;
                 float2 uv     : TEXCOORD0;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
+                //UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct v2f
             {
                 float4 vertex : SV_POSITION;
-                float3 normalWS : TEXCOORD0;
+                float3 normalWS : TEXCOORD2;
                 float3 positionWS : TEXCOORD1;
-                float2 uv : TEXCOORD2;
+                float2 uv : TEXCOORD0;
                 float fogFactor : TEXCOORD3;
                 float4 screenPos : TEXCOORD4;
                 float4 positionOS : TEXCOORD5;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
+                //int instanceID : TEXCOORD6;
+                //UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
@@ -71,6 +64,8 @@ Shader "Unlit/GrassV4"
                 UNITY_DEFINE_INSTANCED_PROP(float4, _SpecularCol)
                 UNITY_DEFINE_INSTANCED_PROP(float, _PushRadius)
                 UNITY_DEFINE_INSTANCED_PROP(float, _Strength)
+                UNITY_DEFINE_INSTANCED_PROP(float, _WindSpeed)
+                UNITY_DEFINE_INSTANCED_PROP(float, _MeshScale)
             UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
 
             #define _DownCol     UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _DownCol)
@@ -79,6 +74,8 @@ Shader "Unlit/GrassV4"
             #define _SpecularCol UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _SpecularCol)
             #define _PushRadius UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _PushRadius)
             #define _Strength UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _Strength)
+            #define _WindSpeed UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _WindSpeed)
+            #define _MeshScale UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, _MeshScale)
 
             TEXTURE2D(_MainTex);
             SAMPLER(sampler_MainTex);
@@ -95,13 +92,13 @@ Shader "Unlit/GrassV4"
             };
 
             //StructuredBuffer<float4x4> _MatsOut;
-            StructuredBuffer<GrassData> _GrassDataBuf;
+            //StructuredBuffer<GrassData> _GrassDataBuf;
             StructuredBuffer<uint> _VisibleIndices;
-            float4 _PlayerPos;
+            //float4 _PlayerPos;
 
             
             // 创建模型矩阵
-            float4x4 CreateModelMatrix(float3 pos, float3 rot, float scl, float h)
+            /*float4x4 CreateModelMatrix(float3 pos, float3 rot, float scl, float h)
             {
                 // 转换为弧度
                 float3 rad = radians(rot);
@@ -137,7 +134,7 @@ Shader "Unlit/GrassV4"
                 
                 // 组合变换: T * R * S
                 return mul(transMatrix, mul(rotMatrix, scaleMatrix));
-            }
+            }*/
 
             float rand(float2 seed) {
                 return frac(sin(dot(seed.xy, float2(12.9898, 78.233))) * 43758.5453);
@@ -167,7 +164,7 @@ Shader "Unlit/GrassV4"
                 float phaseOffset = rand(float2(id, 0)) * 2 * PI;
                 
                 // 使用更自然的风场函数
-                float timeFactor = _Time.x * 5;//_WindSpeed;
+                float timeFactor = _Time.x * 5 *_WindSpeed;
                 float frequency = lerp(0.8, 1.5, rand(float2(id, 0)));
                 float amplitude = 1;//_WindStrength * _BendIntensity * blend * 0.5;
                 
@@ -187,7 +184,7 @@ Shader "Unlit/GrassV4"
                 return windEffect;
             }
 
-            float _Radius;
+            /*float _Radius;
 
              // 工具函数：绕轴旋转矩阵
             float3x3 AngleAxis3x3(float angle, float3 axis)
@@ -227,17 +224,18 @@ Shader "Unlit/GrassV4"
                     // 4. 轻微压缩（高度方向）
                     worldPos.y *= lerp(1.0, 0.7, falloff);
                 }
-            }
+            }*/
 
             float4x4 _ObjectToWorld;
-            float _Height, _MinHeight, _MaxHeight;
+            //float _Height, _MinHeight, _MaxHeight;
+            StructuredBuffer<float4x4> _MatsOut;
             //float4x4 _CamVP;
 
             v2f vert (appdata v, uint instanceID : SV_InstanceID)
             {
-                v2f o;
-                UNITY_SETUP_INSTANCE_ID(v);
-                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                 v2f o;
+                //UNITY_SETUP_INSTANCE_ID(v);
+                //UNITY_TRANSFER_INSTANCE_ID(v, o);
 
                 uint realInstanceID;
                 #ifdef USE_CULLING
@@ -246,10 +244,14 @@ Shader "Unlit/GrassV4"
                     realInstanceID = instanceID;
                 #endif
 
-                uint seed =  _GrassDataBuf[realInstanceID].data  & 0xFFFFu;//_GrassDataBuf[realInstanceID].data  & 0xFFFFu; // 低 16 位
-                float height = lerp(_MinHeight, _MaxHeight, rand(float2(realInstanceID, 0)));
+                //uint seed =  _GrassDataBuf[realInstanceID].data  & 0xFFFFu;//_GrassDataBuf[realInstanceID].data  & 0xFFFFu; // 低 16 位
+                //float height = lerp(_MinHeight, _MaxHeight, rand(float2(realInstanceID, 0)));
+
+                float4x4 transform = _MatsOut[realInstanceID];
+                float4 localPosInParent = mul(transform, v.vertex);
+                float4 wPos = mul(_ObjectToWorld, localPosInParent); 
                 
-                float4x4 grassModelMatrix = CreateModelMatrix(
+                /*float4x4 grassModelMatrix = CreateModelMatrix(
                     _GrassDataBuf[realInstanceID].pos,
                     _GrassDataBuf[realInstanceID].rot,
                     _GrassDataBuf[realInstanceID].scale,
@@ -260,13 +262,14 @@ Shader "Unlit/GrassV4"
                 
                 // 3. 应用父对象的变换：局部空间 -> 世界空间
                 float4 wPos = mul(_ObjectToWorld, localPosInParent); 
+                wPos = worldPos;
 
-                //float noise = LowFreqNoise(wPos.xz , _Time.y * 3, 1, 7);
-                float worldWave = sin(_Time.x * 8+ wPos.x * 0.2  + wPos.z * 0.2);
-                worldWave *= localPosInParent.y ;// _WorldAmplitude *      // 大振幅
+                //float noise = LowFreqNoise(wPos.xz , _Time.y * 3, 1, 7);*/
+                float worldWave = sin(_Time.x * _WindSpeed+ wPos.x *1.0f/ _MeshScale  + wPos.z *1/ _MeshScale);
+                worldWave *= localPosInParent.y * _Strength;// _WorldAmplitude *      // 大振幅
 
                 // 2. 植株随机波（高频、小振幅）
-                float3 plantWave = CalculateWindEffect(seed) * localPosInParent.y * 1 ;//_PlantAmplitude ;
+                float3 plantWave = CalculateWindEffect(realInstanceID ) * localPosInParent.y * 1 ;//_PlantAmplitude ;
 
                 // 3. 叠加
                 wPos.xz += worldWave ;//* float2(1, 1);   // 整体起伏
@@ -274,7 +277,7 @@ Shader "Unlit/GrassV4"
 
                 o.normalWS = normalize(TransformObjectToWorldNormal(v.normal));
 
-                ApplyPlayerInteraction(wPos.xyz, o.normalWS);
+                //ApplyPlayerInteraction(wPos.xyz, o.normalWS);
 
                 o.vertex    = mul(UNITY_MATRIX_VP, wPos);        // 世界->裁剪
                 o.positionWS = wPos.xyz;
@@ -282,6 +285,7 @@ Shader "Unlit/GrassV4"
                 
                 // 转换法线到世界空间
                 o.uv = v.uv;
+                //o.instanceID = instanceID;
                 o.screenPos = ComputeScreenPos(o.vertex);
                 
                 // 计算雾效因子
@@ -293,86 +297,21 @@ Shader "Unlit/GrassV4"
     
             half4 frag (v2f i) : SV_Target
             {
-                UNITY_SETUP_INSTANCE_ID(i);
+                //UNITY_SETUP_INSTANCE_ID(i);
                 
                 half3 col = lerp(_DownCol, _UpCol, i.uv.y);
                 col *= lerp(_ButtomCol, 1, i.uv.y);
                 float u = smoothstep(0.9, 1.0, i.uv.y);
                 col += lerp(col, _SpecularCol, u);
-
-                float dis = distance(_PlayerPos.xyz, i.positionWS);
-    
-                // 计算弯曲强度
-                float inRange = saturate(1 - dis / _PushRadius);
-                
-                // 可视化：
-                // - 红色表示弯曲强度
-                // - 绿色表示草高度
-                // - 蓝色表示距离
-                half3 debugColor = half3(
-                    inRange, 
-                    i.uv.y, 
-                    saturate(dis / _PushRadius)
-                );
                             
                 return half4(col.xyz, 1);
                 //return i.fogFactor;
+                //return float4(frac(i.instanceID * 0.1), frac(i.instanceID * 0.2), 1, 1);
                 //return worldWave;
             }
             ENDHLSL
         }
         
-        // 阴影投射Pass
-        /*Pass
-        {
-            Name "ShadowCaster"
-            Tags{"LightMode" = "ShadowCaster"}
-            
-            ZWrite On
-            ZTest LEqual
-            ColorMask 0
-            Cull Off
-            
-            HLSLPROGRAM
-            #pragma vertex vertShadow
-            #pragma fragment fragShadow
-            #pragma multi_compile_instancing
-            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
-            
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
-            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
-            
-            struct ShadowAttributes
-            {
-                float4 positionOS : POSITION;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-            
-            struct ShadowVaryings
-            {
-                float4 positionCS : SV_POSITION;
-                UNITY_VERTEX_INPUT_INSTANCE_ID
-            };
-            
-            StructuredBuffer<float4x4> _MatsOut;
-            
-            ShadowVaryings vertShadow (ShadowAttributes v, uint instanceID : SV_InstanceID)
-            {
-                ShadowVaryings o;
-                UNITY_SETUP_INSTANCE_ID(v);
-                UNITY_TRANSFER_INSTANCE_ID(v, o);
-                
-                float4x4 transform = _MatsOut[instanceID];
-                float4 worldPos = mul(transform, v.positionOS);
-                o.positionCS = TransformWorldToHClip(worldPos.xyz);
-                return o;
-            }
-            
-            half4 fragShadow (ShadowVaryings i) : SV_TARGET
-            {
-                return 0;
-            }
-            ENDHLSL
-        }*/
+        
     }
 }

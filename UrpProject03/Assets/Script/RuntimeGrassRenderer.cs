@@ -12,7 +12,9 @@ public class RuntimeGrassRenderer : MonoBehaviour
     public GrassDataAsset grassData;
     public Mesh[] grassMeshes;
     public Material[] grassMaterials;
-    public GameObject player;
+    //public GameObject player;
+    public GameObject[] playObjects;
+    private ComputeBuffer playerPositionsBuf;
     public float PushRadius;
 
     private ComputeBuffer grassBuffer;
@@ -29,6 +31,10 @@ public class RuntimeGrassRenderer : MonoBehaviour
     public float MaxHeight = 1.0f;
     public float MaxDistSq = 1000;
 
+    private uint[] args = new uint[5] { 0, 0, 0, 0, 0 };
+
+    private ComputeBuffer matBuf; // 材质属性
+
     void Start()
     {
         if (grassData == null)
@@ -41,6 +47,8 @@ public class RuntimeGrassRenderer : MonoBehaviour
         Debug.Log($"Baked 数据总条数：{grassData.grassInstances.Length}");
     }
 
+    //sprivate ComputeBuffer countBuffer ;
+
     void InitializeBuffers()
     {
         // 确保有草数据
@@ -49,6 +57,25 @@ public class RuntimeGrassRenderer : MonoBehaviour
             Debug.LogError("No grass instances in GrassData asset");
             return;
         }
+
+        if (playObjects != null && playObjects.Length > 0)
+        {
+            Vector3[] playerPositions = new Vector3[playObjects.Length];
+            for (int i = 0; i < playObjects.Length; i++)
+            {
+                if (playObjects[i] != null)
+                {
+                    playerPositions[i] = playObjects[i].transform.position;
+                }
+            }
+            playerPositionsBuf = new ComputeBuffer(playObjects.Length, 12); // float3 = 12 bytes
+            playerPositionsBuf.SetData(playerPositions);
+        }
+        else
+        {
+            playerPositionsBuf = new ComputeBuffer(1, 12); // 避免空指针
+        }
+
 
         // 创建缓冲区
         int maxGrass = grassData.grassInstances.Length;
@@ -71,10 +98,13 @@ public class RuntimeGrassRenderer : MonoBehaviour
 
         visibleNative = new NativeList<int>(maxGrass, Allocator.Persistent);
 
+        matBuf = new ComputeBuffer(maxGrass, 64);
+        //countBuffer = new ComputeBuffer(1, 4, ComputeBufferType.Raw);
+
         //selectedMaterialId = (grassData.grassInstances.variationData >> 16) & 0xFF; 
 
         //UpdateDrawArgsBuffer();
-        uint[] args = new uint[5] {
+        args = new uint[5] {
             grassMeshes[0].GetIndexCount(0),   // 固定
             0,                       // 实例数由 CopyCount 动态改写
             grassMeshes[0].GetIndexStart(0),
@@ -128,6 +158,8 @@ public class RuntimeGrassRenderer : MonoBehaviour
     return planes;
 }
 
+
+    private int counts;
     void CullOnGpu()
     {
         Camera cam = Camera.main;
@@ -140,14 +172,55 @@ public class RuntimeGrassRenderer : MonoBehaviour
         cullCompute.SetFloat("_MaxDistSq", MaxDistSq * MaxDistSq);
         cullCompute.SetInt("_TotalCount", grassData.grassInstances.Length);
         cullCompute.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
+        cullCompute.SetFloat("_Time", Time.time);
+        cullCompute.SetInt("_Counts", counts);
         //cullCompute.SetInt("_VisibleCount", visibleGrassCount);
+
+        cullCompute.SetFloat("_MinHeight", MinHeight);
+        cullCompute.SetFloat("_MaxHeight", MaxHeight);
+
+        cullCompute.SetBuffer(kernel, "_MatsOut", matBuf);
+        float dis = Vector3.Distance(cam.transform.position ,transform.position);
+        Debug.Log("dis" + dis);
+
+        if (playObjects != null && playObjects.Length > 0)
+        {
+            Vector3[] playerPositions = new Vector3[playObjects.Length];
+            for (int i = 0; i < playObjects.Length; i++)
+            {
+                if (playObjects[i] != null)
+                {
+                    playerPositions[i] = playObjects[i].transform.position;
+                }
+            }
+            playerPositionsBuf.SetData(playerPositions);
+            cullCompute.SetInt("_PlayerCount", playObjects.Length);
+            cullCompute.SetFloat("_PushRadius", PushRadius);
+        }
+        else
+        {
+            cullCompute.SetInt("_PlayerCount", 0);
+        }
+
+        cullCompute.SetBuffer(kernel, "_PlayerPosBuf", playerPositionsBuf);
+
 
         visibleIndexBuffer.SetCounterValue(0);                         // 重置 Append
         int groups = Mathf.CeilToInt(grassData.grassInstances.Length / 64f);
         cullCompute.Dispatch(kernel, groups, 1, 1);
 
         // 把可见数量写进 argsBuffer
-        ComputeBuffer.CopyCount(visibleIndexBuffer, argsBuffer, 4);
+        ComputeBuffer.CopyCount(visibleIndexBuffer, argsBuffer, sizeof(uint));
+
+        //visibleIndexBuffer.SetCounterValue(1000);
+        /*ComputeBuffer.CopyCount(visibleIndexBuffer, countBuffer, 0);
+
+        // CPU 端读取
+        uint[] countArr = new uint[1];
+        countBuffer.GetData(countArr);
+        uint visibleCount = countArr[0];
+        args[1] = visibleCount;
+        Debug.Log($"Updated argsBuffer: indices={args[0]}  instances={visibleCount}");*/
     }
 
     NativeList<int> visibleNative;
@@ -216,7 +289,7 @@ void PerformCullingJob()
         argsBuffer.SetData(args);
 
         Debug.Log("instance num is" + args[1]);
-        Debug.Log("bounds is" + transform.position);
+       // Debug.Log("bounds is" + transform.position);
     }
 
     void Update()
@@ -261,10 +334,10 @@ void PerformCullingJob()
         Mesh mesh = grassMeshes[0];
         Material material = grassMaterials[0];
 
-        if (player != null)
+        /*if (player != null)
             material.SetVector("_PlayerPos", player.transform.position);
         else
-            material.SetVector("_PlayerPos", Vector4.zero);
+            material.SetVector("_PlayerPos", Vector4.zero);*/
 
         // 确保材质支持GPU实例化
         if (!material.enableInstancing)
@@ -273,31 +346,30 @@ void PerformCullingJob()
             material.enableInstancing = true;
         }
 
-        // 设置材质参数
-
 
         // 重要：使用正确的变换矩阵
         material.SetMatrix("_ObjectToWorld", transform.localToWorldMatrix);
         material.SetBuffer("_GrassDataBuf", grassBuffer);
         material.SetBuffer("_VisibleIndices", visibleIndexBuffer);
+        material.SetBuffer("_MatsOut", matBuf);
         material.EnableKeyword("USE_CULLING");
-        Vector4 playerPos = Vector4.zero;
+        material.enableInstancing = true;
+        //Vector4 playerPos = Vector4.zero;
         float radius = 0f;          // 0 = 关闭交互
 
-        if (player != null)
+        /*if (player != null)
         {
             playerPos = player.transform.position;
             radius = PushRadius;
-        }
+        }*/
 
-        material.SetVector("_PlayerPos", playerPos);
-        material.SetFloat("_Radius", radius);
+        // material.SetVector("_PlayerPos", playerPos);
+        // material.SetFloat("_Radius", radius);
+       //material.SetFloat("_MinHeight", MinHeight);
+       //material.SetFloat("_MaxHeight", MaxHeight);
 
-        material.SetFloat("_MinHeight", MinHeight);
-        material.SetFloat("_MaxHeight", MaxHeight);
 
-
-        material.SetFloat("_Height", 1.0f);
+        //material.SetFloat("_Height", 1.0f);
 
         // 渲染
         Graphics.DrawMeshInstancedIndirect(mesh, 0, material, renderBounds, argsBuffer);
