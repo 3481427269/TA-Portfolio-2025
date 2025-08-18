@@ -18,6 +18,7 @@
 运行结果：
 ![Result](./image/LastResult.gif)
 
+<<<<<<< HEAD
 性能测试：
 
 处理器：13th Gen Intel(R) Core(TM) i5-13500H (2.60 GHz)；
@@ -28,6 +29,8 @@
 相机距离80m帧频稳定在170左右
 相机距离30m帧频稳定在95左右
 
+=======
+>>>>>>> 5f2466084db595fc8f81a160f9d980a078d9ecee
 一些注意事项：
 另外不同草地需要使用不同的材质，否则后用草地更改的材质数据会覆盖前者。
 旧工程残留 JobSystem 剔除逻辑，所以需配置相关包才能正常运行，或者可以自行删除RuntimeGrassRenderer脚本中的Job system相关内容。
