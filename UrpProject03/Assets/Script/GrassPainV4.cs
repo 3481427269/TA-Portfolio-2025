@@ -224,7 +224,7 @@ public class GrassPainV4 : MonoBehaviour
 
         Vector3 localPos = transform.InverseTransformPoint(pos);
         localPos.y = 0.0f;
-        localPos += new Vector3(Random.Range(-0.5f,0.5f), 0f, Random.Range(-0.5f,0.5f));
+        localPos += new Vector3(Random.Range(-0.1f,0.1f), 0f, Random.Range(-0.1f,0.1f));
         Debug.Log($"世界坐标: {pos} -> 局部坐标: {localPos}");
 
         uint newData =

@@ -180,8 +180,8 @@ public class RuntimeGrassRenderer : MonoBehaviour
         cullCompute.SetFloat("_MaxHeight", MaxHeight);
 
         cullCompute.SetBuffer(kernel, "_MatsOut", matBuf);
-        float dis = Vector3.Distance(cam.transform.position ,transform.position);
-        Debug.Log("dis" + dis);
+        //float dis = Vector3.Distance(cam.transform.position ,transform.position);
+        //Debug.Log("dis" + dis);
 
         if (playObjects != null && playObjects.Length > 0)
         {

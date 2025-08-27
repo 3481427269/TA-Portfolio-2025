@@ -1,4 +1,4 @@
-Shader "Unlit/GrassV4"
+Shader "Unlit/GrassV4Shader"
 {
     Properties
     {
@@ -92,13 +92,13 @@ Shader "Unlit/GrassV4"
             };
 
             //StructuredBuffer<float4x4> _MatsOut;
-            //StructuredBuffer<GrassData> _GrassDataBuf;
+            StructuredBuffer<GrassData> _GrassDataBuf;
             StructuredBuffer<uint> _VisibleIndices;
             //float4 _PlayerPos;
 
             
             // 创建模型矩阵
-            /*float4x4 CreateModelMatrix(float3 pos, float3 rot, float scl, float h)
+            float4x4 CreateModelMatrix(float3 pos, float3 rot, float scl, float h)
             {
                 // 转换为弧度
                 float3 rad = radians(rot);
@@ -134,7 +134,7 @@ Shader "Unlit/GrassV4"
                 
                 // 组合变换: T * R * S
                 return mul(transMatrix, mul(rotMatrix, scaleMatrix));
-            }*/
+            }
 
             float rand(float2 seed) {
                 return frac(sin(dot(seed.xy, float2(12.9898, 78.233))) * 43758.5453);
@@ -227,7 +227,7 @@ Shader "Unlit/GrassV4"
             }*/
 
             float4x4 _ObjectToWorld;
-            //float _Height, _MinHeight, _MaxHeight;
+            float _Height, _MinHeight, _MaxHeight;
             StructuredBuffer<float4x4> _MatsOut;
             //float4x4 _CamVP;
 
@@ -240,16 +240,30 @@ Shader "Unlit/GrassV4"
                 uint realInstanceID;
                 #ifdef USE_CULLING
                     realInstanceID = _VisibleIndices[instanceID];
+                    float4x4 transform = _MatsOut[realInstanceID];
+                    float4 localPosInParent = mul(transform, v.vertex);
+                    float4 wPos = mul(_ObjectToWorld, localPosInParent); 
                 #else
                     realInstanceID = instanceID;
+                    float height = lerp(_MinHeight, _MaxHeight, rand(float2(realInstanceID, 0)));
+
+                    float4x4 grassModelMatrix = CreateModelMatrix(
+                    _GrassDataBuf[realInstanceID].pos,
+                    _GrassDataBuf[realInstanceID].rot,
+                    _GrassDataBuf[realInstanceID].scale,
+                    height);
+                
+                    // 2. 将顶点从草模型空间 -> 父对象局部空间
+                    float4 localPosInParent = mul(grassModelMatrix, float4(v.vertex.xyz, 1.0));
+                    
+                    // 3. 应用父对象的变换：局部空间 -> 世界空间
+                    float4 wPos = mul(_ObjectToWorld, localPosInParent); 
                 #endif
 
                 //uint seed =  _GrassDataBuf[realInstanceID].data  & 0xFFFFu;//_GrassDataBuf[realInstanceID].data  & 0xFFFFu; // 低 16 位
                 //float height = lerp(_MinHeight, _MaxHeight, rand(float2(realInstanceID, 0)));
 
-                float4x4 transform = _MatsOut[realInstanceID];
-                float4 localPosInParent = mul(transform, v.vertex);
-                float4 wPos = mul(_ObjectToWorld, localPosInParent); 
+                
                 
                 /*float4x4 grassModelMatrix = CreateModelMatrix(
                     _GrassDataBuf[realInstanceID].pos,

@@ -11,8 +11,7 @@ Material:
   m_Shader: {fileID: 4800000, guid: f250a1a66f050404dae23c1ff48878b0, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
-  m_ValidKeywords:
-  - USE_CULLING
+  m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 1
@@ -26,9 +25,9 @@ Material:
     m_TexEnvs: []
     m_Ints: []
     m_Floats:
-    - _MeshScale: 4.87
-    - _Strength: 0.88
-    - _WindSpeed: 9.7
+    - _MeshScale: 4.8
+    - _Strength: 1
+    - _WindSpeed: 1.92
     m_Colors:
     - _ButtomCol: {r: 0.5764706, g: 0.5764706, b: 0.5764706, a: 0}
     - _DownCol: {r: 0.25490198, g: 0.30588236, b: 0.4392157, a: 0}
